@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Go Concurrency Field Guide — Goroutines, Channels &amp; WaitGroup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0d13;
+    --panel: #121722;
+    --panel-2: #171e2b;
+    --border: #232b3b;
+    --text: #e7ecf3;
+    --text-dim: #8d98ab;
+    --amber: #ffb454;
+    --teal: #5eead4;
+    --coral: #ff6b57;
+    --violet: #a78bfa;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'IBM Plex Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  *,*::before,*::after{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; scroll-padding-top: 76px; }
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.035) 1px, transparent 0) 0 0/24px 24px,
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap{ max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  h1,h2,h3,h4{ font-family: var(--font-display); font-weight:600; line-height:1.15; margin:0; color:#fff; }
+  p{ margin: 0 0 1rem; color: var(--text); }
+  p:last-child{ margin-bottom:0; }
+  a{ color: inherit; }
+  ::selection{ background: rgba(94,234,212,0.25); }
+  :focus-visible{ outline: 2px solid var(--teal); outline-offset: 2px; }
+
+  .eyebrow{
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    display:flex; align-items:center; gap:10px;
+    margin-bottom: 14px;
+  }
+  .eyebrow::before{ content:""; width:18px; height:1px; background: var(--border); display:inline-block; }
+  .eyebrow.amber{ color: var(--amber); } .eyebrow.amber::before{ background: var(--amber); }
+  .eyebrow.teal{ color: var(--teal); } .eyebrow.teal::before{ background: var(--teal); }
+  .eyebrow.coral{ color: var(--coral); } .eyebrow.coral::before{ background: var(--coral); }
+  .eyebrow.violet{ color: var(--violet); } .eyebrow.violet::before{ background: var(--violet); }
+
+  /* ---------- nav ---------- */
+  .topnav{
+    position: sticky; top:0; z-index: 100;
+    background: rgba(10,13,19,0.86);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topnav__inner{
+    max-width: 1040px; margin:0 auto; padding: 0 24px;
+    display:flex; align-items:center; gap: 28px; height: 58px;
+  }
+  .topnav__brand{ font-family: var(--font-mono); font-size:0.85rem; color: var(--text); white-space:nowrap; display:flex; align-items:center; gap:8px;}
+  .topnav__brand span{ color: var(--amber); }
+  .topnav__links{ display:flex; gap: 4px; overflow-x:auto; scrollbar-width:none; }
+  .topnav__links::-webkit-scrollbar{ display:none; }
+  .topnav__links a{
+    text-decoration:none; color: var(--text-dim); font-size:0.85rem; white-space:nowrap;
+    padding: 8px 12px; border-radius: 7px; transition: color .15s ease, background .15s ease;
+  }
+  .topnav__links a:hover{ color: var(--text); background: var(--panel); }
+  .topnav__links a.is-active{ color: var(--bg); background: var(--teal); font-weight:600; }
+
+  /* ---------- hero ---------- */
+  .hero{ padding: 76px 0 40px; text-align:center; }
+  .hero h1{ font-size: clamp(2rem, 4.6vw, 3.1rem); max-width: 780px; margin: 0 auto 20px; letter-spacing:-0.01em; }
+  .hero__sub{ max-width: 620px; margin: 0 auto; color: var(--text-dim); font-size: 1.05rem; }
+  .hero__eyebrow{ justify-content:center; }
+  .hero__eyebrow::before{ display:none; }
+
+  .diagram{ margin: 44px auto 8px; max-width: 720px; }
+  .diagram svg{ width:100%; height:auto; display:block; }
+  .diagram figcaption{ margin-top:10px; font-size:0.82rem; color: var(--text-dim); }
+
+  .badges{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 30px; }
+  .badge{
+    font-family: var(--font-mono); font-size: 0.78rem;
+    border: 1px solid var(--border); background: var(--panel);
+    padding: 7px 14px; border-radius: 999px; color: var(--text-dim);
+  }
+  .badge b{ color: var(--text); font-weight:500; }
+
+  /* ---------- generic section ---------- */
+  section{ padding: 64px 0; border-top: 1px solid var(--border); }
+  section.hero{ border-top:none; }
+  .section__head{ max-width: 640px; margin-bottom: 40px; }
+  .section__head h2{ font-size: clamp(1.5rem, 3vw, 2rem); margin-bottom: 14px; }
+  .section__head p{ color: var(--text-dim); }
+
+  /* ---------- mental model cards ---------- */
+  .model-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
+  .model-card{
+    background: var(--panel); border:1px solid var(--border); border-radius: 14px;
+    padding: 24px; text-align:left;
+  }
+  .model-card svg{ width:34px; height:34px; margin-bottom:16px; }
+  .model-card h3{ font-size: 1.05rem; margin-bottom:8px; }
+  .model-card p{ color: var(--text-dim); font-size:0.92rem; margin:0; }
+
+  /* ---------- tables ---------- */
+  .tbl-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius: 12px; }
+  table{ width:100%; border-collapse: collapse; font-size:0.88rem; }
+  th,td{ text-align:left; padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align:top; }
+  thead th{ background: var(--panel-2); color: var(--text-dim); font-family: var(--font-mono); font-size:0.72rem; text-transform:uppercase; letter-spacing:.06em; font-weight:500; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody td:first-child{ font-family: var(--font-mono); color:var(--text); white-space:nowrap; }
+  td code, p code, li code{ font-family: var(--font-mono); background: var(--panel-2); padding: 2px 6px; border-radius:5px; font-size:0.86em; border:1px solid var(--border); }
+
+  /* ---------- code windows ---------- */
+  .code-window{ border:1px solid var(--border); border-radius: 12px; overflow:hidden; background: #0c1119; margin: 18px 0; }
+  .code-window__bar{ display:flex; align-items:center; gap:6px; padding:9px 14px; background: var(--panel-2); border-bottom:1px solid var(--border); }
+  .code-window__dot{ width:8px; height:8px; border-radius:50%; background: var(--border); }
+  .code-window__label{ margin-left:auto; font-family: var(--font-mono); font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; }
+  .code-window pre{ margin:0; padding: 18px 20px; overflow-x:auto; }
+  .code-window code{ font-family: var(--font-mono); font-size:0.85rem; line-height:1.65; background:none; border:none; padding:0; color:var(--text); }
+  .code-note{ font-size:0.85rem; color: var(--text-dim); margin-top: -8px; margin-bottom:18px; }
+
+  /* hljs token colors, mapped to our palette */
+  .hljs-keyword,.hljs-built_in{ color: var(--coral); }
+  .hljs-string{ color: var(--teal); }
+  .hljs-comment{ color: var(--text-dim); font-style: italic; }
+  .hljs-number,.hljs-literal{ color: var(--amber); }
+  .hljs-title.function_, .hljs-title.function, .hljs-title{ color: var(--violet); }
+  .hljs-params{ color: var(--text); }
+  .hljs-type{ color: var(--amber); }
+  .hljs-variable,.hljs-attr{ color: #9fb2c9; }
+
+  /* ---------- callouts ---------- */
+  .callout{ border:1px solid var(--border); border-left: 3px solid var(--amber); background: var(--panel); border-radius: 10px; padding: 18px 20px; margin: 20px 0; }
+  .callout--teal{ border-left-color: var(--teal); }
+  .callout--coral{ border-left-color: var(--coral); }
+  .callout--violet{ border-left-color: var(--violet); }
+  .callout__tag{ font-family: var(--font-mono); font-size:0.7rem; text-transform:uppercase; letter-spacing:.08em; color: var(--amber); margin-bottom:8px; display:block; }
+  .callout--teal .callout__tag{ color: var(--teal); }
+  .callout--coral .callout__tag{ color: var(--coral); }
+  .callout--violet .callout__tag{ color: var(--violet); }
+  .callout p{ font-size: 0.92rem; color: var(--text-dim); margin:0; }
+  .callout ul{ margin:8px 0 0; padding-left: 18px; color: var(--text-dim); font-size:0.92rem; }
+  .callout li{ margin-bottom:4px; }
+
+  /* ---------- toggle pairs ---------- */
+  .toggle-card{ border:1px solid var(--border); border-radius:12px; overflow:hidden; margin:20px 0; background: var(--panel); }
+  .toggle-tabs{ display:flex; border-bottom:1px solid var(--border); }
+  .toggle-tab{
+    flex:1; font-family: var(--font-mono); font-size:0.78rem; padding:12px 14px;
+    background:transparent; border:none; color: var(--text-dim); cursor:pointer;
+    border-right:1px solid var(--border); transition: background .15s ease, color .15s ease;
+  }
+  .toggle-tab:last-child{ border-right:none; }
+  .toggle-tab.is-active{ background: var(--panel-2); color: var(--text); }
+  .toggle-panel{ display:none; padding: 4px 20px 20px; }
+  .toggle-panel.is-active{ display:block; }
+  .toggle-panel .code-window{ margin: 14px 0 8px; }
+  .toggle-panel p{ font-size:0.88rem; color: var(--text-dim); }
+
+  /* ---------- interview accordion ---------- */
+  .filter-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 26px; }
+  .filter-pill{
+    font-family: var(--font-mono); font-size:0.78rem; padding:8px 16px; border-radius:999px;
+    border:1px solid var(--border); background: var(--panel); color: var(--text-dim); cursor:pointer;
+  }
+  .filter-pill.is-active{ color: var(--bg); background: var(--text); border-color: var(--text); }
+  .qa-list{ display:flex; flex-direction:column; gap:10px; }
+  .qa-item{
+    border:1px solid var(--border); border-left: 3px solid var(--border);
+    background: var(--panel); border-radius: 10px; overflow:hidden;
+  }
+  .qa-item[data-cat="fundamentals"]{ border-left-color: var(--amber); }
+  .qa-item[data-cat="channels"]{ border-left-color: var(--teal); }
+  .qa-item[data-cat="sync"]{ border-left-color: var(--coral); }
+  .qa-item[data-cat="patterns"]{ border-left-color: var(--violet); }
+  .qa-item summary{
+    list-style:none; cursor:pointer; padding: 16px 18px; display:flex; align-items:center; gap:12px;
+    font-size: 0.96rem; color: var(--text);
+  }
+  .qa-item summary::-webkit-details-marker{ display:none; }
+  .qa-item summary .qnum{ font-family: var(--font-mono); font-size:0.78rem; color: var(--text-dim); flex-shrink:0; }
+  .qa-item summary .chev{ margin-left:auto; width:16px; height:16px; flex-shrink:0; transition: transform .18s ease; color: var(--text-dim); }
+  .qa-item[open] summary .chev{ transform: rotate(90deg); }
+  .qa-item__body{ padding: 0 18px 20px 46px; color: var(--text-dim); font-size:0.92rem; }
+  .qa-item__body p{ color: var(--text-dim); }
+  .qa-item__body a{ color: var(--teal); }
+
+  /* ---------- misc ---------- */
+  .pill-row{ display:flex; gap:8px; flex-wrap:wrap; margin: 16px 0; }
+  .grid-2{ display:grid; grid-template-columns: 1fr 1fr; gap:18px; }
+  footer{ padding: 44px 0 60px; text-align:center; color: var(--text-dim); font-size:0.85rem; border-top:1px solid var(--border); }
+  footer a{ color: var(--teal); text-decoration:none; }
+
+  @media (max-width: 760px){
+    .model-grid{ grid-template-columns: 1fr; }
+    .grid-2{ grid-template-columns: 1fr; }
+    .toggle-tabs{ flex-direction:column; }
+    .toggle-tab{ border-right:none; border-bottom:1px solid var(--border); }
+    section{ padding: 46px 0; }
+    .hero{ padding: 56px 0 30px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation: none !important; transition: none !important; }
+  }
+
+  /* ---------- hero diagram animation ---------- */
+  .train{ animation: travel 4.4s linear infinite; }
+  .train-2{ animation-delay: -1.5s; }
+  .train-3{ animation-delay: -2.9s; }
+  @keyframes travel{
+    0%{ transform: translateX(0); }
+    66%{ transform: translateX(478px); }
+    92%{ transform: translateX(478px); }
+    100%{ transform: translateX(0); }
+  }
+  .cnt-3{ animation: c3 4.4s linear infinite; }
+  .cnt-2{ animation: c2 4.4s linear infinite; }
+  .cnt-1{ animation: c1 4.4s linear infinite; }
+  .cnt-0{ animation: c0 4.4s linear infinite; }
+  @keyframes c3{ 0%,60%{opacity:1} 64%,100%{opacity:0} }
+  @keyframes c2{ 0%,60%{opacity:0} 64%,78%{opacity:1} 82%,100%{opacity:0} }
+  @keyframes c1{ 0%,78%{opacity:0} 82%,90%{opacity:1} 94%,100%{opacity:0} }
+  @keyframes c0{ 0%,90%{opacity:0} 94%,100%{opacity:1} }
+  .signal{ animation: flash 4.4s linear infinite; }
+  @keyframes flash{ 0%,92%{ fill:#2b3346; } 96%,100%{ fill:#34d399; } }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav__inner">
+    <div class="topnav__brand"><span>&gt;</span> go/concurrency</div>
+    <div class="topnav__links" id="navLinks">
+      <a href="#overview">Overview</a>
+      <a href="#goroutines">Goroutines</a>
+      <a href="#channels">Channels</a>
+      <a href="#waitgroup">WaitGroup</a>
+      <a href="#together">Worker Pool</a>
+      <a href="#patterns">Patterns</a>
+      <a href="#interview">Interview Prep</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="overview">
+  <div class="wrap">
+    <div class="eyebrow hero__eyebrow amber">Go concurrency, from first principles</div>
+    <h1>Goroutines, channels, and the wait group that ties them together.</h1>
+    <p class="hero__sub">One reference for how Go's three core concurrency primitives actually behave underneath, how they compose into real patterns, and the questions interviewers reach for when they want to know if you've actually used them.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 720 220" role="img" aria-label="Diagram showing three goroutine lanes converging through a channel into a WaitGroup gate that unblocks a signal light once every goroutine has arrived">
+        <text x="0" y="34" font-family="JetBrains Mono" font-size="12" fill="#ffb454">G1</text>
+        <text x="0" y="94" font-family="JetBrains Mono" font-size="12" fill="#ffb454">G2</text>
+        <text x="0" y="154" font-family="JetBrains Mono" font-size="12" fill="#ffb454">G3</text>
+
+        <rect x="26" y="20" width="500" height="14" rx="7" fill="#171e2b" stroke="#232b3b"/>
+        <rect x="26" y="80" width="500" height="14" rx="7" fill="#171e2b" stroke="#232b3b"/>
+        <rect x="26" y="140" width="500" height="14" rx="7" fill="#171e2b" stroke="#232b3b"/>
+
+        <circle class="train train-1" cx="36" cy="27" r="7" fill="#ffb454"/>
+        <circle class="train train-2" cx="36" cy="87" r="7" fill="#ffb454"/>
+        <circle class="train train-3" cx="36" cy="147" r="7" fill="#ffb454"/>
+
+        <path d="M526 20 L570 84 L570 116 L526 154 Z" fill="#5eead4" fill-opacity="0.12" stroke="#5eead4" stroke-opacity="0.5"/>
+        <rect x="570" y="86" width="46" height="28" fill="#5eead4" fill-opacity="0.14" stroke="#5eead4" stroke-opacity="0.5"/>
+
+        <rect x="622" y="34" width="44" height="132" rx="8" fill="#171e2b" stroke="#ff6b57" stroke-width="1.5"/>
+        <text class="cnt-3" x="644" y="108" text-anchor="middle" font-family="JetBrains Mono" font-size="26" font-weight="600" fill="#ff6b57">3</text>
+        <text class="cnt-2" x="644" y="108" text-anchor="middle" font-family="JetBrains Mono" font-size="26" font-weight="600" fill="#ff6b57">2</text>
+        <text class="cnt-1" x="644" y="108" text-anchor="middle" font-family="JetBrains Mono" font-size="26" font-weight="600" fill="#ff6b57">1</text>
+        <text class="cnt-0" x="644" y="108" text-anchor="middle" font-family="JetBrains Mono" font-size="26" font-weight="600" fill="#ff6b57">0</text>
+
+        <circle class="signal" cx="694" cy="100" r="9" fill="#2b3346" stroke="#232b3b"/>
+
+        <text x="26" y="196" font-family="JetBrains Mono" font-size="11" fill="#8d98ab">goroutines</text>
+        <text x="560" y="196" font-family="JetBrains Mono" font-size="11" fill="#5eead4" text-anchor="middle">channel</text>
+        <text x="644" y="196" font-family="JetBrains Mono" font-size="11" fill="#ff6b57" text-anchor="middle">sync.WaitGroup</text>
+        <text x="694" y="126" font-family="JetBrains Mono" font-size="10" fill="#8d98ab" text-anchor="middle">Wait()</text>
+      </svg>
+      <figcaption>Three goroutines run independently, a channel gives them a way to talk, and a WaitGroup is the gate that only opens once every one of them has checked in.</figcaption>
+    </figure>
+
+    <div class="badges">
+      <span class="badge"><b>go</b> func()</span>
+      <span class="badge"><b>make</b>(chan T)</span>
+      <span class="badge"><b>sync.</b>WaitGroup</span>
+      <span class="badge"><b>select</b> { }</span>
+    </div>
+  </div>
+</header>
+
+<section id="mental-model">
+  <div class="wrap">
+    <div class="section__head">
+      <div class="eyebrow">The short version</div>
+      <h2>Three primitives, three jobs</h2>
+      <p>Before the details, it helps to know what each piece is actually for. None of them overlap — each solves a different problem, and most real Go code uses all three together.</p>
+    </div>
+    <div class="model-grid">
+      <div class="model-card">
+        <svg viewBox="0 0 40 40" fill="none" stroke="#ffb454" stroke-width="2"><circle cx="14" cy="20" r="6"/><path d="M22 12 Q30 20 22 28" stroke-dasharray="3 3"/></svg>
+        <h3>Goroutine — the worker</h3>
+        <p>A function running independently, scheduled by the Go runtime instead of the OS. Cheap enough to start thousands of them without thinking twice.</p>
+      </div>
+      <div class="model-card">
+        <svg viewBox="0 0 40 40" fill="none" stroke="#5eead4" stroke-width="2"><rect x="4" y="16" width="24" height="8" rx="4"/><path d="M28 20 L34 20 M30 15 L35 20 L30 25"/></svg>
+        <h3>Channel — the conveyor</h3>
+        <p>A typed pipe that lets goroutines hand values to each other safely, without touching shared memory directly.</p>
+      </div>
+      <div class="model-card">
+        <svg viewBox="0 0 40 40" fill="none" stroke="#ff6b57" stroke-width="2"><path d="M12 6 V34 M28 6 V34"/><path d="M15 20 L18 24 L25 15"/></svg>
+        <h3>WaitGroup — the checkpoint</h3>
+        <p>A counter that blocks one goroutine until a set of others have all finished. It carries no data — only "are we done yet?"</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= GOROUTINES ================= -->
+<section id="goroutines">
+  <div class="wrap">
+    <div class="section__head">
+      <div class="eyebrow amber">01 — Goroutines</div>
+      <h2>A lightweight thread the runtime owns, not the OS</h2>
+      <p>A goroutine is a function that runs concurrently with the rest of your program. You start one by putting <code>go</code> in front of a function call — the runtime takes it from there.</p>
+    </div>
+
+    <p>Under the hood, Go's scheduler multiplexes many goroutines onto a much smaller number of OS threads. This is usually called the <strong>GMP model</strong>: a <strong>G</strong>oroutine is a unit of work, an <strong>M</strong> is an OS thread ("machine") that actually executes code, and a <strong>P</strong> is a logical processor that holds a queue of runnable goroutines and the resources an M needs to run them. The scheduler hands goroutines to Ps, Ps feed Ms, and when an M blocks on a slow syscall, its P can be handed to a different M so other goroutines keep making progress. That's the mechanism that lets one process comfortably run hundreds of thousands of goroutines on just a handful of threads.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Property</th><th>Goroutine</th><th>OS thread</th></tr></thead>
+        <tbody>
+          <tr><td>Initial stack</td><td>~2 KB, grows and shrinks as needed</td><td>Fixed, typically 1–8 MB</td></tr>
+          <tr><td>Created by</td><td>The Go runtime, in user space</td><td>The operating system kernel</td></tr>
+          <tr><td>Practical count</td><td>Hundreds of thousands, comfortably</td><td>Realistically a few thousand</td></tr>
+          <tr><td>Scheduling</td><td>M:N — many goroutines over few OS threads</td><td>1:1 with the CPU scheduler</td></tr>
+          <tr><td>Switch cost</td><td>Cheap, managed cooperatively by the runtime</td><td>More expensive kernel-mode switch</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">main.go</span></div>
+      <pre><code class="language-go">package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func sayHello() {
+	fmt.Println("hello from a goroutine")
+}
+
+func main() {
+	go sayHello()                     // scheduled — not guaranteed to have run yet
+	fmt.Println("hello from main")
+	time.Sleep(50 * time.Millisecond) // give the scheduler a chance to run it
+}</code></pre>
+    </div>
+    <p class="code-note">Without that <code>Sleep</code>, <code>main</code> can return before <code>sayHello</code> ever gets scheduled — a goroutine is never automatically "joined" the way a thread might be. That's the entire reason WaitGroups and channels exist: something has to tell the main goroutine when the others are actually done.</p>
+
+    <div class="callout">
+      <span class="callout__tag">Classic pitfall</span>
+      <p>Capturing a loop variable inside a goroutine closure is the single most common goroutine bug interviewers ask about. See the toggle below.</p>
+    </div>
+
+    <div class="toggle-card">
+      <div class="toggle-tabs">
+        <button class="toggle-tab is-active" data-panel="a">Relying on the loop variable</button>
+        <button class="toggle-tab" data-panel="b">Passing it explicitly</button>
+      </div>
+      <div class="toggle-panel is-active" data-panel="a">
+        <div class="code-window">
+          <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">loopvar.go</span></div>
+          <pre><code class="language-go">var wg sync.WaitGroup
+for i := 0; i &lt; 3; i++ {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fmt.Println(i) // on Go &lt;1.22 this often prints 3,3,3
+	}()
+}
+wg.Wait()</code></pre>
+        </div>
+        <p>Before Go 1.22, every iteration of a <code>for</code> loop reused the <em>same</em> variable <code>i</code>. If the goroutines didn't get scheduled until the loop had already finished, they'd all read the final value. As of Go 1.22, each iteration gets its own fresh copy of <code>i</code>, so this specific version is actually safe on modern Go too — but you should still know the failure mode, because plenty of codebases run older Go and plenty of interviewers still ask about it.</p>
+      </div>
+      <div class="toggle-panel" data-panel="b">
+        <div class="code-window">
+          <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">loopvar_fixed.go</span></div>
+          <pre><code class="language-go">var wg sync.WaitGroup
+for i := 0; i &lt; 3; i++ {
+	wg.Add(1)
+	go func(i int) {       // i is now a fresh parameter, not shared state
+		defer wg.Done()
+		fmt.Println(i)
+	}(i)
+}
+wg.Wait()</code></pre>
+        </div>
+        <p>Passing <code>i</code> as a parameter (or writing <code>i := i</code> inside the loop body) makes the capture explicit and correct on every Go version, so most style guides still recommend it even though 1.22+ no longer strictly requires it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CHANNELS ================= -->
+<section id="channels">
+  <div class="wrap">
+    <div class="section__head">
+      <div class="eyebrow teal">02 — Channels</div>
+      <h2>Typed pipes for goroutines to talk through</h2>
+      <p>Go's guiding proverb is to not communicate by sharing memory, but instead share memory by communicating. A channel is that communication: a typed conduit you create with <code>make</code>, send into with <code>&lt;-</code>, and receive from the same way.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="model-card">
+        <h3 style="font-size:1rem;margin-bottom:6px;">Unbuffered</h3>
+        <p><code>make(chan int)</code> — a send blocks until another goroutine is ready to receive, and vice versa. The two sides rendezvous; there's no queue in between.</p>
+      </div>
+      <div class="model-card">
+        <h3 style="font-size:1rem;margin-bottom:6px;">Buffered</h3>
+        <p><code>make(chan int, 3)</code> — a send only blocks once the buffer is full. It decouples sender and receiver timing, but it doesn't remove the need for coordination.</p>
+      </div>
+    </div>
+
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">unbuffered.go</span></div>
+      <pre><code class="language-go">messages := make(chan string)
+
+go func() {
+	messages &lt;- "ping" // blocks here until main receives
+}()
+
+msg := &lt;-messages // blocks here until the goroutine sends
+fmt.Println(msg)</code></pre>
+    </div>
+
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">buffered.go</span></div>
+      <pre><code class="language-go">queue := make(chan int, 3)
+queue &lt;- 1
+queue &lt;- 2
+queue &lt;- 3
+fmt.Println(len(queue), cap(queue)) // 3 3 — len is items waiting, cap is buffer size
+close(queue)
+
+for v := range queue { // drains remaining buffered values, then exits
+	fmt.Println(v)
+}</code></pre>
+    </div>
+
+    <p>Function signatures can restrict a channel to one direction, which documents intent and stops a consumer from accidentally sending:</p>
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">direction.go</span></div>
+      <pre><code class="language-go">func producer(out chan&lt;- int, n int) { // send-only from producer's point of view
+	for i := 0; i &lt; n; i++ {
+		out &lt;- i
+	}
+	close(out)
+}
+
+func consumer(in &lt;-chan int) { // receive-only from consumer's point of view
+	for v := range in {
+		fmt.Println("got", v)
+	}
+}</code></pre>
+    </div>
+
+    <h3 style="font-size:1.1rem;margin:34px 0 12px;" id="channel-nil-closed-table">Nil, closed, and open — the table interviewers actually want</h3>
+    <p>This is the part of channels people get wrong under pressure. Memorize this table rather than the code:</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Operation</th><th>Nil channel</th><th>Closed channel</th><th>Open channel</th></tr></thead>
+        <tbody>
+          <tr><td>Send <code>ch&lt;-v</code></td><td>Blocks forever</td><td>Panics: <code>send on closed channel</code></td><td>Blocks until a receiver / buffer slot is ready</td></tr>
+          <tr><td>Receive <code>&lt;-ch</code></td><td>Blocks forever</td><td>Returns the zero value immediately, <code>ok</code> is <code>false</code></td><td>Blocks until a value arrives</td></tr>
+          <tr><td><code>close(ch)</code></td><td>Panics: <code>close of nil channel</code></td><td>Panics: <code>close of closed channel</code></td><td>Closes it — no error</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="code-note">A blocking nil channel isn't a bug — it's actually useful. Leaving a <code>select</code> case pointed at a nil channel permanently disables that case without an <code>if</code> branch, which is a clean way to turn off a timeout or a data source conditionally.</p>
+
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">select_timeout.go</span></div>
+      <pre><code class="language-go">select {
+case res := &lt;-resultCh:
+	fmt.Println("result:", res)
+case &lt;-time.After(2 * time.Second):
+	fmt.Println("timed out waiting for a result")
+}</code></pre>
+    </div>
+    <p class="code-note"><code>select</code> waits on several channel operations at once. If more than one is ready, it picks one at random — not in source order — and a <code>default</code> case makes the whole statement non-blocking by firing immediately when nothing else is ready. One subtlety with <code>time.After</code>: each call allocates a new timer that isn't garbage-collected until it fires, so calling it repeatedly inside a hot loop is a minor leak — <code>context.WithTimeout</code> is the safer choice in production code.</p>
+
+    <div class="callout callout--teal">
+      <span class="callout__tag">Rule of thumb</span>
+      <p>Only the sender should close a channel, and only one sender should ever do it. If several goroutines might write to the same channel, don't let any of them close it directly — have a separate coordinator close it once every writer has finished (the WaitGroup-then-close pattern in the Worker Pool section below is the standard way to do that safely).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WAITGROUP ================= -->
+<section id="waitgroup">
+  <div class="wrap">
+    <div class="section__head">
+      <div class="eyebrow coral">03 — sync.WaitGroup</div>
+      <h2>A counter that blocks until it hits zero</h2>
+      <p><code>sync.WaitGroup</code> doesn't carry any data — it only answers one question: has this specific set of goroutines finished yet? It's a counting semaphore with exactly three methods.</p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Method</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>Add(n)</td><td>Increases the internal counter by <code>n</code>. Call it before starting the goroutines it accounts for.</td></tr>
+          <tr><td>Done()</td><td>Decreases the counter by one. Equivalent to <code>Add(-1)</code> — almost always called via <code>defer</code> at the top of the goroutine.</td></tr>
+          <tr><td>Wait()</td><td>Blocks the calling goroutine until the counter reaches zero.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">waitgroup.go</span></div>
+      <pre><code class="language-go">func main() {
+	var wg sync.WaitGroup
+	urls := []string{"a.com", "b.com", "c.com"}
+
+	for _, u := range urls {
+		wg.Add(1)
+		go func(u string) {
+			defer wg.Done()
+			fetch(u)
+		}(u)
+	}
+
+	wg.Wait()
+	fmt.Println("all fetches complete")
+}</code></pre>
+    </div>
+
+    <div class="callout callout--coral">
+      <span class="callout__tag">Two rules that prevent every common bug</span>
+      <ul>
+        <li>Always pass a <code>*sync.WaitGroup</code> by pointer. Copying a WaitGroup copies its counter, so the copy and the original stop agreeing with each other — <code>go vet</code> will flag this for you.</li>
+        <li>Always call <code>Add()</code> before the <code>go</code> statement, never inside the goroutine. See the toggle below for why.</li>
+      </ul>
+    </div>
+
+    <div class="toggle-card">
+      <div class="toggle-tabs">
+        <button class="toggle-tab is-active" data-panel="a">Add() inside the goroutine</button>
+        <button class="toggle-tab" data-panel="b">Add() before go</button>
+      </div>
+      <div class="toggle-panel is-active" data-panel="a">
+        <div class="code-window">
+          <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">race.go</span></div>
+          <pre><code class="language-go">var wg sync.WaitGroup
+for i := 0; i &lt; 3; i++ {
+	go func() {
+		wg.Add(1)      // racing against Wait() below
+		defer wg.Done()
+		work()
+	}()
+}
+wg.Wait() // may return immediately — counter could still be 0</code></pre>
+        </div>
+        <p>There's no guarantee any goroutine has reached <code>Add(1)</code> before <code>Wait()</code> checks the counter. If the counter is still zero at that moment, <code>Wait()</code> returns immediately and the program moves on while goroutines are still running.</p>
+      </div>
+      <div class="toggle-panel" data-panel="b">
+        <div class="code-window">
+          <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">fixed.go</span></div>
+          <pre><code class="language-go">var wg sync.WaitGroup
+for i := 0; i &lt; 3; i++ {
+	wg.Add(1)         // happens-before the goroutine even starts
+	go func() {
+		defer wg.Done()
+		work()
+	}()
+}
+wg.Wait() // guaranteed to see the full count</code></pre>
+        </div>
+        <p>Calling <code>Add(1)</code> on the same goroutine that starts the worker, before the <code>go</code> statement, guarantees the counter is correct the instant <code>Wait()</code> is called.</p>
+      </div>
+    </div>
+
+    <p>One more edge case worth knowing: if a goroutine panics before its deferred <code>Done()</code> runs, the deferred call still executes during panic unwinding — but an unrecovered panic in <em>any</em> goroutine terminates the whole process regardless, so the WaitGroup's state stops mattering at that point.</p>
+  </div>
+</section>
+
+<!-- ================= TOGETHER: WORKER POOL ================= -->
+<section id="together">
+  <div class="wrap">
+    <div class="section__head">
+      <div class="eyebrow violet">04 — Putting it together</div>
+      <h2>The worker pool: the pattern interviewers actually want to see</h2>
+      <p>This is the canonical example that uses all three primitives at once, and it's the pattern most "design a concurrent X" interview questions are secretly asking for.</p>
+    </div>
+
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">worker_pool.go</span></div>
+      <pre><code class="language-go">func main() {
+	const numWorkers = 3
+	jobs := make(chan int, 10)
+	results := make(chan int, 10)
+	var wg sync.WaitGroup
+
+	for w := 1; w &lt;= numWorkers; w++ {
+		wg.Add(1)
+		go worker(w, jobs, results, &amp;wg)
+	}
+
+	for j := 1; j &lt;= 9; j++ {
+		jobs &lt;- j
+	}
+	close(jobs) // no more work — each worker's range loop will end once drained
+
+	go func() {
+		wg.Wait()       // wait until every worker has exited its range loop
+		close(results)  // only now is it safe to close results
+	}()
+
+	for r := range results {
+		fmt.Println("result:", r)
+	}
+}
+
+func worker(id int, jobs &lt;-chan int, results chan&lt;- int, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for j := range jobs {
+		results &lt;- j * j
+	}
+}</code></pre>
+    </div>
+    <p class="code-note">Notice the shape: <code>jobs</code> is closed by the single goroutine that produces work, <code>results</code> is closed by a dedicated goroutine that waits for every worker first — never by the workers themselves. That's the "one coordinator closes it" rule from the Channels section, applied.</p>
+
+    <h3 style="font-size:1.1rem;margin:36px 0 12px;">Adding cancellation with context</h3>
+    <p>A WaitGroup alone can't cut work short. When you need to stop early — a client disconnects, a timeout fires — pair channels with <code>context.Context</code> instead of, or alongside, a WaitGroup.</p>
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">graceful_shutdown.go</span></div>
+      <pre><code class="language-go">func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	results := make(chan int)
+	go worker(ctx, results)
+
+	select {
+	case r := &lt;-results:
+		fmt.Println("got:", r)
+	case &lt;-ctx.Done():
+		fmt.Println("cancelled:", ctx.Err())
+	}
+}
+
+func worker(ctx context.Context, results chan&lt;- int) {
+	select {
+	case &lt;-time.After(5 * time.Second): // simulate slow work
+		results &lt;- 42
+	case &lt;-ctx.Done():
+		return // stop early — no goroutine leak
+	}
+}</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PATTERNS ================= -->
+<section id="patterns">
+  <div class="wrap">
+    <div class="section__head">
+      <div class="eyebrow violet">05 — Patterns &amp; pitfalls</div>
+      <h2>The shapes these primitives keep forming</h2>
+      <p>Most concurrent Go code is a variation on a small handful of patterns. Recognizing them is most of what "systems design" questions in a Go interview are testing.</p>
+    </div>
+
+    <h3 style="font-size:1.05rem;margin-bottom:10px;">Fan-out, fan-in</h3>
+    <p>Fan-out starts several goroutines to work on a shared input; fan-in merges several output channels into one. The merge step needs to know when <em>every</em> source is done before it can close the merged channel — which is exactly what a WaitGroup is for.</p>
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">fanin.go</span></div>
+      <pre><code class="language-go">func fanIn(channels ...&lt;-chan int) &lt;-chan int {
+	merged := make(chan int)
+	var wg sync.WaitGroup
+	wg.Add(len(channels))
+
+	for _, c := range channels {
+		go func(c &lt;-chan int) {
+			defer wg.Done()
+			for v := range c {
+				merged &lt;- v
+			}
+		}(c)
+	}
+
+	go func() {
+		wg.Wait()
+		close(merged)
+	}()
+
+	return merged
+}</code></pre>
+    </div>
+
+    <h3 style="font-size:1.05rem;margin:30px 0 10px;">Pipelines</h3>
+    <p>Each stage is a function that takes an input channel and returns an output channel, run in its own goroutine. Stages compose by feeding one's output into the next's input, and closing propagates down the chain automatically once the source is exhausted and closed.</p>
+
+    <div class="grid-2" style="margin-top:26px;">
+      <div class="callout callout--violet">
+        <span class="callout__tag">Goroutine leaks</span>
+        <p>A leaked goroutine is one that's still alive but will never finish — usually blocked forever on a channel nobody will write to or close. The fix is almost always the same: give every long-running goroutine a way out, typically a <code>ctx.Done()</code> case in its <code>select</code>.</p>
+      </div>
+      <div class="callout callout--violet">
+        <span class="callout__tag">Deadlocks</span>
+        <p>A single unbuffered send with no receiver anywhere deadlocks immediately: <code>ch := make(chan int); ch &lt;- 1</code>. The Go runtime can detect and report this when <em>every</em> goroutine is asleep, but if even one other goroutine is still doing something, it stays silent and you're on your own with a stuck program.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:1.05rem;margin:30px 0 10px;">Finding races instead of guessing at them</h3>
+    <p>Unsynchronized access to shared state — like two goroutines incrementing the same plain <code>int</code> — is a data race, and it can silently produce wrong answers instead of crashing. Don't eyeball code for this; build and run with the race detector instead:</p>
+    <div class="code-window">
+      <div class="code-window__bar"><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__dot"></span><span class="code-window__label">shell</span></div>
+      <pre><code class="language-bash">go run -race main.go
+go test -race ./...</code></pre>
+    </div>
+    <p class="code-note">The fix is either a <code>sync.Mutex</code> around the shared value, a <code>sync/atomic</code> operation for simple counters, or restructuring the code so only one goroutine ever touches that piece of state and everyone else talks to it over a channel.</p>
+
+    <div class="callout">
+      <span class="callout__tag">Related primitives worth knowing the names of</span>
+      <p><code>sync.Mutex</code> / <code>sync.RWMutex</code> guard shared state directly instead of routing access through a channel. <code>sync.Once</code> runs something exactly one time — the standard way to write thread-safe lazy initialization. <code>sync/atomic</code> gives lock-free operations for simple counters. And <code>golang.org/x/sync/errgroup</code> is a WaitGroup that also propagates the first error and can cancel a shared context — it's what most production code reaches for instead of raw <code>sync.WaitGroup</code> once error handling matters.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= INTERVIEW PREP ================= -->
+<section id="interview">
+  <div class="wrap">
+    <div class="section__head">
+      <div class="eyebrow">06 — Interview prep</div>
+      <h2>Questions worth being able to answer cold</h2>
+      <p>Grouped by topic, colour-coded to match the sections above. Click a question to expand it, or filter down to one topic at a time.</p>
+    </div>
+
+    <div class="filter-row" id="filterRow">
+      <button class="filter-pill is-active" data-filter="all">All 26</button>
+      <button class="filter-pill" data-filter="fundamentals">Fundamentals</button>
+      <button class="filter-pill" data-filter="channels">Channels</button>
+      <button class="filter-pill" data-filter="sync">WaitGroup &amp; sync</button>
+      <button class="filter-pill" data-filter="patterns">Patterns &amp; gotchas</button>
+    </div>
+
+    <div class="qa-list" id="qaList">
+
+      <details class="qa-item" data-cat="fundamentals">
+        <summary><span class="qnum">01</span><span>What is a goroutine, and how does it differ from an OS thread?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>A goroutine is a function that runs concurrently, scheduled by the Go runtime rather than the OS kernel. It starts with a tiny (~2 KB) stack that grows as needed, whereas an OS thread has a large fixed stack and is created and scheduled by the kernel. That difference is why a Go program can run comfortably with hundreds of thousands of goroutines but would struggle with anywhere near that many OS threads.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="fundamentals">
+        <summary><span class="qnum">02</span><span>How does Go's scheduler map goroutines onto OS threads?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Through what's usually called the GMP model: <strong>G</strong>oroutines are units of work, <strong>M</strong>s are OS threads that execute code, and <strong>P</strong>s are logical processors that each hold a run queue of goroutines and the resources an M needs. The scheduler multiplexes many Gs over few Ms via the Ps, and can move a P to a different M when the current one blocks on a syscall — that's the mechanism that keeps other goroutines running even while one is stuck waiting on I/O.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="fundamentals">
+        <summary><span class="qnum">03</span><span>What happens to goroutines still running when <code>main()</code> returns?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>They're killed immediately — Go does not wait for other goroutines to finish when <code>main</code> exits. This is exactly why WaitGroups and channels exist: without one, there's no guarantee a goroutine you launched ever completes before the program ends.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="fundamentals">
+        <summary><span class="qnum">04</span><span>Does <code>go f()</code> run concurrently the instant it's called?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>No — it schedules the function to run, but the scheduler decides when. The calling goroutine keeps executing immediately afterward, and there's no guarantee about ordering between the two unless you add explicit synchronization such as a channel or a WaitGroup.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="fundamentals">
+        <summary><span class="qnum">05</span><span>What's the difference between concurrency and parallelism in Go?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Concurrency is about structuring a program as independently executing pieces — dealing with many things at once. Parallelism is actually running computations simultaneously on multiple cores. Goroutines give you concurrency by default; whether that concurrency turns into real parallelism depends on <code>GOMAXPROCS</code> and how many CPU cores are actually available.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="fundamentals">
+        <summary><span class="qnum">06</span><span>Why is a goroutine's stack so much smaller than a thread's, and what happens as it grows?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Goroutine stacks start around 2 KB because the runtime manages them directly and can resize them on demand — when a goroutine needs more space, the runtime allocates a larger stack, copies the contents over, and fixes up pointers. OS threads can't do this cheaply, so they're given a large fixed-size stack up front, which is a big part of why they're far more expensive to create in bulk.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="channels">
+        <summary><span class="qnum">07</span><span>What is a channel, and why does Go favor it over shared memory and locks?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>A channel is a typed conduit, created with <code>make(chan T)</code>, that goroutines use to send and receive values safely. Go's guiding idea is to communicate by sharing memory less and passing ownership of data through channels instead, which sidesteps a whole category of race conditions that come from multiple goroutines touching the same variable directly.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="channels">
+        <summary><span class="qnum">08</span><span>Buffered vs unbuffered channels — how does the blocking behavior differ?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>An unbuffered channel (<code>make(chan int)</code>) has no storage — a send blocks until a receiver is ready and vice versa, so the two goroutines rendezvous. A buffered channel (<code>make(chan int, n)</code>) can hold up to <code>n</code> values, so a send only blocks once the buffer is full and a receive only blocks once it's empty. Buffering decouples timing but doesn't remove the need to eventually drain or close the channel correctly.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="channels">
+        <summary><span class="qnum">09</span><span>What happens sending on a closed channel? Receiving from one? Closing a nil or already-closed channel?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Sending on a closed channel panics with <code>send on closed channel</code>. Receiving from a closed channel never blocks — it returns the zero value immediately with <code>ok == false</code>. Closing an already-closed channel panics (<code>close of closed channel</code>), and closing a nil channel also panics (<code>close of nil channel</code>). See the full table in the <a href="#channel-nil-closed-table">Channels section</a> — it's worth memorizing outright.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="channels">
+        <summary><span class="qnum">10</span><span>What's the difference between <code>len(ch)</code> and <code>cap(ch)</code>?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p><code>cap(ch)</code> is the fixed buffer size the channel was created with. <code>len(ch)</code> is how many values are currently sitting in that buffer waiting to be received. For an unbuffered channel, <code>cap</code> is always 0.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="channels">
+        <summary><span class="qnum">11</span><span>What are directional channel types used for?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p><code>chan&lt;- T</code> restricts a channel parameter to sending only, and <code>&lt;-chan T</code> restricts it to receiving only. Any bidirectional <code>chan T</code> can be passed where a directional type is expected, but not the reverse — this documents intent in a function signature and lets the compiler stop a consumer from accidentally writing back into a producer's channel.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="channels">
+        <summary><span class="qnum">12</span><span>What does <code>select</code> do when multiple cases are ready, and what does <code>default</code> change?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>If several cases are ready at the same time, <code>select</code> picks one at random — it makes no promise about source order. A <code>default</code> case fires immediately whenever no other case is ready yet, which turns the whole statement into a non-blocking check instead of one that waits.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="channels">
+        <summary><span class="qnum">13</span><span>How do you put a timeout on a channel receive, and what's the catch?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Wrap it in a <code>select</code> with a <code>time.After(d)</code> case. The catch: every call to <code>time.After</code> creates a new timer that lingers in memory until it fires, so using it inside a loop that runs many times is a slow leak. <code>context.WithTimeout</code>, cancelled with <code>defer cancel()</code>, is the safer default in production code.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="sync">
+        <summary><span class="qnum">14</span><span>What are the three <code>sync.WaitGroup</code> methods, and what does each one do?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p><code>Add(n)</code> increases an internal counter by <code>n</code>; <code>Done()</code> decreases it by one (equivalent to <code>Add(-1)</code>); <code>Wait()</code> blocks the calling goroutine until the counter reaches zero. It's a pure counting semaphore — it carries no data about the work itself.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="sync">
+        <summary><span class="qnum">15</span><span>Why must <code>Add()</code> be called before starting the goroutine, not inside it?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>If <code>Add(1)</code> runs inside the goroutine, there's a race against <code>Wait()</code>: if <code>Wait()</code> checks the counter before that goroutine has actually reached <code>Add(1)</code>, it can see zero and return immediately while goroutines are still running. Calling <code>Add()</code> on the launching goroutine, before <code>go</code>, guarantees the counter is correct the moment <code>Wait()</code> is called.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="sync">
+        <summary><span class="qnum">16</span><span>Why should a WaitGroup always be passed by pointer?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>A <code>sync.WaitGroup</code> holds its counter as a value. Copying it — say, by passing it by value into a function — copies the counter too, so the copy and the original immediately stop agreeing on how many goroutines are outstanding. <code>go vet</code> will warn about this if it can see the copy happening.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="sync">
+        <summary><span class="qnum">17</span><span>What happens if <code>Done()</code> is called more times than <code>Add()</code>?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>The counter goes negative, which panics immediately with <code>sync: negative WaitGroup counter</code>. This usually means <code>Done()</code> is being called more times than a goroutine actually represents — a common cause is calling it once per loop iteration inside a goroutine that only had <code>Add(1)</code> called for it once, total.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="sync">
+        <summary><span class="qnum">18</span><span>What happens if a goroutine panics before its deferred <code>Done()</code> runs?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Deferred calls still run during panic unwinding, so <code>Done()</code> does execute. But that mostly doesn't matter: an unrecovered panic in any single goroutine crashes the entire process, not just that goroutine, so the WaitGroup's counter never gets the chance to be relevant.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="sync">
+        <summary><span class="qnum">19</span><span>WaitGroup vs Mutex vs channel — when do you reach for each?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Use a <strong>WaitGroup</strong> when you need to know that a known number of goroutines have all finished, with no data to collect. Use a <strong>Mutex</strong> when multiple goroutines need to read and write the same in-memory value safely. Use a <strong>channel</strong> when goroutines need to actually hand data or results to each other, not just signal completion. Many real programs use all three at once, each for the job it's actually suited to.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="patterns">
+        <summary><span class="qnum">20</span><span>How do you build a worker pool, and why close <code>results</code> only after <code>wg.Wait()</code>?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Start N goroutines that all range over a shared <code>jobs</code> channel and write to a shared <code>results</code> channel, tracked by one WaitGroup entry each. See the full <a href="#together">worked example</a> above. Closing <code>results</code> too early — before every worker has finished writing to it — risks a "send on closed channel" panic from a worker that's still running; waiting on the WaitGroup first guarantees every writer is done before the channel closes.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="patterns">
+        <summary><span class="qnum">21</span><span>What's a goroutine leak, and how do you prevent one?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>A goroutine leak is a goroutine that's still alive but will never finish — usually blocked forever waiting on a channel nobody will ever write to, close, or read from. The fix is almost always to give any long-running goroutine an escape hatch, typically a <code>ctx.Done()</code> case alongside its other work in a <code>select</code>.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="patterns">
+        <summary><span class="qnum">22</span><span>How do you actually detect a data race in Go?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>With the built-in race detector: <code>go run -race main.go</code> or <code>go test -race ./...</code>. It instruments memory accesses at runtime and reports the exact two goroutines and stack traces involved in an unsynchronized read/write, rather than making you guess from a wrong answer alone.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="patterns">
+        <summary><span class="qnum">23</span><span>What does a Go deadlock look like, and why doesn't the runtime always catch it?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>The simplest case is an unbuffered send with no receiver anywhere: <code>ch := make(chan int); ch &lt;- 1</code> blocks forever. The Go runtime detects and reports <code>fatal error: all goroutines are asleep - deadlock!</code> — but only when <em>every single goroutine</em> in the program is blocked. If even one other goroutine is still doing something, the program just hangs silently with no diagnostic at all.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="patterns">
+        <summary><span class="qnum">24</span><span>Explain the classic loop-variable capture bug — how did Go 1.22 change it?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Before Go 1.22, a <code>for</code> loop reused a single variable across every iteration, so a goroutine closure referencing it could see whatever value the loop had reached by the time the goroutine actually ran — often the final value for every goroutine. Go 1.22 changed the language so each iteration gets its own copy of the loop variable, which fixes this specific bug by default. It's still good style to pass the value in explicitly, both for clarity and for code that has to run on older Go.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="patterns">
+        <summary><span class="qnum">25</span><span>Why can concurrent <code>fmt.Println</code> calls produce garbled or interleaved output?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>Each individual <code>Println</code> call is safe, but nothing coordinates the order in which different goroutines' calls happen, so their output can interleave line by line, or even mid-line under heavy load. It's a scheduling ordering issue rather than memory corruption — if you need clean sequential logs from concurrent code, route the log lines through a single channel and print them from one goroutine.</p></div>
+      </details>
+
+      <details class="qa-item" data-cat="patterns">
+        <summary><span class="qnum">26</span><span>How would you cancel a group of in-flight goroutines early?</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="qa-item__body"><p>The idiomatic way is <code>context.Context</code>: pass a <code>ctx</code> created with <code>context.WithCancel</code> or <code>context.WithTimeout</code> into every goroutine, and have each one <code>select</code> on <code>ctx.Done()</code> alongside its normal work so it can exit the moment cancellation fires. A hand-rolled "done channel" that's closed once achieves the same thing and predates <code>context</code>, but <code>context</code> also carries deadlines and request-scoped values, which is why it's the standard choice today.</p></div>
+      </details>
+
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    A study reference covering goroutines, channels, and <code>sync.WaitGroup</code> — the three primitives almost every Go concurrency question is really asking about.
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+<script>
+  if (window.hljs) { hljs.highlightAll(); }
+
+  // toggle-card tabs
+  document.querySelectorAll('.toggle-card').forEach(function(card){
+    card.addEventListener('click', function(e){
+      var btn = e.target.closest('.toggle-tab');
+      if(!btn || !card.contains(btn)) return;
+      var target = btn.getAttribute('data-panel');
+      card.querySelectorAll('.toggle-tab').forEach(function(t){ t.classList.toggle('is-active', t === btn); });
+      card.querySelectorAll('.toggle-panel').forEach(function(p){ p.classList.toggle('is-active', p.getAttribute('data-panel') === target); });
+    });
+  });
+
+  // interview filter pills
+  var filterRow = document.getElementById('filterRow');
+  var qaItems = document.querySelectorAll('.qa-item');
+  filterRow.addEventListener('click', function(e){
+    var btn = e.target.closest('.filter-pill');
+    if(!btn) return;
+    filterRow.querySelectorAll('.filter-pill').forEach(function(p){ p.classList.toggle('is-active', p === btn); });
+    var filter = btn.getAttribute('data-filter');
+    qaItems.forEach(function(item){
+      item.style.display = (filter === 'all' || item.getAttribute('data-cat') === filter) ? '' : 'none';
+    });
+  });
+
+  // scroll-spy nav
+  var navLinks = document.querySelectorAll('#navLinks a');
+  var sections = Array.from(navLinks).map(function(a){ return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+  if('IntersectionObserver' in window){
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          var id = '#' + entry.target.id;
+          navLinks.forEach(function(a){ a.classList.toggle('is-active', a.getAttribute('href') === id); });
+        }
+      });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    sections.forEach(function(s){ observer.observe(s); });
+  }
+</script>
+
+</body>
+</html>
