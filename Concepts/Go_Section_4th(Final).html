@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Go (Golang) Interview Prep — Advanced Patterns</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-card: #161b22;
+    --ink: #c9d1d9;
+    --ink-soft: #8b949e;
+    --cyan: #58a6ff;
+    --cyan-dark: #388bfd;
+    --cyan-soft: rgba(88, 166, 255, 0.1);
+    --amber: #f0883e;
+    --amber-soft: rgba(240, 136, 62, 0.1);
+    --rose: #f43f5e;
+    --rose-soft: rgba(244, 63, 94, 0.1);
+    --border: #30363d;
+    --code-bg: #010409;
+    
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+  }
+  
+  .progress-track { position: fixed; top: 0; left: 0; width: 100%; height: 3px; background: rgba(255,255,255,0.05); z-index: 1000; }
+  .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--cyan), var(--amber)); transition: width .08s linear; }
+
+  a { color: var(--cyan); text-decoration: none; transition: color 0.2s; }
+  a:hover { color: var(--cyan-dark); }
+
+  /* Hero Section */
+  .hero { max-width: 1180px; margin: 0 auto; padding: 56px 32px 36px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+  .hero .eyebrow { font-family: var(--font-mono); color: var(--cyan); text-transform: uppercase; letter-spacing: .14em; font-size: .76rem; font-weight: 600; }
+  .hero h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(2rem, 4.6vw, 3.1rem); line-height: 1.08; margin: .4em 0 .35em; letter-spacing: -.01em; color: #ffffff; }
+  .hero h1 span { color: var(--cyan); }
+  .hero p.lead { max-width: 680px; color: var(--ink-soft); font-size: 1.05rem; line-height: 1.65; margin: 0; }
+  
+  .hero .legend { display: flex; gap: 18px; margin-top: 26px; flex-wrap: wrap; font-size: .82rem; color: var(--ink-soft); }
+  .hero .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .hero .legend .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .hero .legend .dot.note { background: var(--cyan); }
+  .hero .legend .dot.warn { background: var(--rose); }
+
+  .layout { display: flex; max-width: 1180px; margin: 0 auto; gap: 36px; padding: 0 32px 90px; align-items: flex-start; }
+
+  /* Sidebar */
+  nav.sidebar { position: sticky; top: 20px; width: 218px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; max-height: calc(100vh - 40px); overflow-y: auto; padding-right: 6px; }
+  nav.sidebar a { color: var(--ink-soft); padding: 10px 12px; border-radius: 8px; font-size: .87rem; display: flex; gap: 10px; align-items: baseline; transition: all 0.2s; border: 1px solid transparent; }
+  nav.sidebar a .num { font-family: var(--font-mono); color: var(--ink-soft); font-size: .74rem; flex-shrink: 0; transition: color 0.2s; }
+  nav.sidebar a.active { background: var(--bg-card); color: var(--cyan); border-color: var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  nav.sidebar a.active .num { color: var(--cyan); }
+  nav.sidebar a:hover:not(.active) { background: rgba(255,255,255,0.03); color: var(--ink); }
+
+  main.content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 46px; }
+
+  /* Content Cards */
+  .topic { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 34px 38px; scroll-margin-top: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+  .topic .tag { font-family: var(--font-mono); font-size: .74rem; color: var(--cyan); text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+  .topic h2 { font-family: var(--font-display); font-size: 1.55rem; margin: .3em 0 .65em; letter-spacing: -.01em; color: #ffffff; }
+  .topic p { line-height: 1.72; margin: .65em 0; color: var(--ink); }
+  
+  /* Inline Code */
+  .topic code { font-family: var(--font-mono); background: rgba(255,255,255,0.08); padding: .15em .4em; border-radius: 6px; font-size: .88em; color: #e6edf3; border: 1px solid rgba(255,255,255,0.1); }
+
+  /* Code Snippet Blocks */
+  .code-label { font-family: var(--font-mono); font-size: .75rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .08em; margin: 24px 0 -12px 12px; z-index: 1; position: relative; }
+  pre[class*="language-"] { border-radius: 12px; font-size: .9rem; margin: 16px 0 24px; background: var(--code-bg) !important; border: 1px solid var(--border); padding: 1.5em !important; box-shadow: inset 0 2px 8px rgba(0,0,0,0.2); }
+  pre[class*="language-"] code { font-family: var(--font-mono); text-shadow: none !important; border: none; background: transparent; padding: 0; }
+  
+  /* Syntax Highlighting */
+  .token.keyword { color: #ff7b72 !important; }
+  .token.string { color: #a5d6ff !important; }
+  .token.number { color: #79c0ff !important; }
+  .token.builtin { color: #d2a8ff !important; }
+  .token.function { color: #d2a8ff !important; }
+  .token.comment { color: #8b949e !important; font-style: italic; }
+  .token.operator { color: #c9d1d9 !important; }
+  .token.punctuation { color: #8b949e !important; }
+  .token.class-name { color: #ffa657 !important; }
+  .token.boolean { color: #79c0ff !important; }
+
+  /* Callouts */
+  .callout { border-left: 4px solid; border-radius: 8px; padding: 16px 20px; margin: 24px 0; font-size: .93rem; line-height: 1.62; }
+  .callout.note { border-color: var(--cyan); background: var(--cyan-soft); }
+  .callout.warn { border-color: var(--rose); background: var(--rose-soft); }
+  .callout .label { font-family: var(--font-mono); font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .07em; display: block; margin-bottom: 8px; }
+  .callout.note .label { color: var(--cyan); }
+  .callout.warn .label { color: var(--rose); }
+  .callout p { margin: .3em 0; }
+
+  /* Q&A Section */
+  .qa { margin-top: 40px; border-top: 1px dashed var(--border); padding-top: 26px; }
+  .qa h3 { font-family: var(--font-display); font-size: 1.1rem; margin: 0 0 16px; color: #ffffff; }
+  
+  details.q { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden; background: var(--bg); transition: background 0.2s; }
+  details.q:hover { background: rgba(255,255,255,0.02); }
+  details.q summary { padding: 16px; cursor: pointer; font-weight: 500; font-size: .95rem; display: flex; gap: 12px; align-items: flex-start; list-style: none; color: #ffffff; }
+  details.q summary::-webkit-details-marker { display: none; }
+  details.q summary .qmark { font-family: var(--font-mono); color: var(--bg); background: var(--cyan); border-radius: 6px; padding: 2px 8px; font-size: .75rem; flex-shrink: 0; margin-top: 2px; font-weight: 700; }
+  details.q summary .qtext { flex: 1; line-height: 1.5; }
+  details.q summary .chev { color: var(--ink-soft); font-size: 1.2rem; flex-shrink: 0; transition: transform 0.2s; }
+  details.q[open] summary .chev { transform: rotate(180deg); }
+  details.q .answer { padding: 0 16px 20px 50px; color: var(--ink); line-height: 1.65; font-size: .92rem; }
+
+  footer { text-align: center; padding: 46px 20px; color: var(--ink-soft); font-size: .85rem; font-family: var(--font-mono); border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 880px) {
+    .layout { flex-direction: column; }
+    nav.sidebar { position: static; flex-direction: row; overflow-x: auto; width: 100%; max-height: none; padding: 4px 0 16px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    nav.sidebar a { white-space: nowrap; }
+    .topic { padding: 24px 20px; }
+    .hero { padding: 40px 20px 26px; }
+    .layout { padding: 0 20px 70px; }
+    details.q .answer { padding-left: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-track"><div class="progress-fill"></div></div>
+
+<header class="hero">
+  <span class="eyebrow">Go / Golang &middot; Interview Field Notes Part 4</span>
+  <h1>Advanced Patterns &amp;<br><span>Modern Go</span></h1>
+  <p class="lead">Completing the picture: Mutexes, Defer mechanics, advanced error wrapping, context deep dives, and Generics (Go 1.18+).</p>
+  <div class="legend">
+    <span class="chip"><span class="dot note"></span> Good to know</span>
+    <span class="chip"><span class="dot warn"></span> Interview Trap</span>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <a href="#mutex"><span class="num">14</span>Mutexes</a>
+    <a href="#defer"><span class="num">15</span>Defer &amp; Panic</a>
+    <a href="#errors"><span class="num">16</span>Advanced Errors</a>
+    <a href="#context"><span class="num">17</span>The Context Pkg</a>
+    <a href="#generics"><span class="num">18</span>Generics</a>
+  </nav>
+
+  <main class="content">
+
+    <section id="mutex" class="topic">
+      <span class="tag">Topic 14</span>
+      <h2>Mutexes &amp; Synchronization</h2>
+      <p>While channels are great for passing data <em>between</em> goroutines, sometimes you just need multiple goroutines to safely read and write to the same map or struct in memory. That's where <code>sync.Mutex</code> (Mutual Exclusion) comes in.</p>
+      
+      <div class="code-label">mutex.go</div>
+      <pre class="language-go"><code class="language-go">type AgentCache struct {
+    mu     sync.Mutex
+    status map[string]string
+}
+
+func (c *AgentCache) SetStatus(id, state string) {
+    c.mu.Lock()
+    defer c.mu.Unlock() // Always defer Unlock to ensure it runs even if we panic
+    
+    c.status[id] = state
+}
+
+func (c *AgentCache) GetStatus(id string) string {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    
+    return c.status[id]
+}</code></pre>
+
+      <p>Go also provides <code>sync.RWMutex</code>. It allows <strong>multiple readers</strong> to hold the lock simultaneously, but only <strong>one writer</strong>. This is significantly faster if your data is read 99% of the time and rarely written to.</p>
+
+      <div class="callout warn">
+        <span class="label">Interview Trap</span>
+        <p>You must <strong>never</strong> copy a Mutex (e.g., passing the struct by value). A Mutex is a stateful object. If you copy it, the copy gets its own internal lock state, entirely defeating the purpose of synchronization. Always pass structs containing Mutexes by pointer.</p>
+      </div>
+
+      <div class="qa">
+        <h3>Interview Questions — Mutexes</h3>
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">When should you use a Mutex vs. a Channel?</span><span class="chev">⌄</span></summary>
+        <div class="answer">Use a <strong>Mutex</strong> when you need to protect shared state or caches (e.g., updating a map). Use a <strong>Channel</strong> when you need to orchestrate execution, pass ownership of data, or create a pipeline between goroutines.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">What is the difference between <code>sync.Mutex</code> and <code>sync.RWMutex</code>?</span><span class="chev">⌄</span></summary>
+        <div class="answer">A standard <code>Mutex</code> locks completely—only one goroutine can read or write at a time. An <code>RWMutex</code> has <code>RLock()</code> and <code>Lock()</code>. Multiple goroutines can hold an <code>RLock</code> (read lock) simultaneously, but a <code>Lock</code> (write lock) requires exclusive access, blocking all new and existing readers.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">What happens if you call <code>Unlock()</code> on an already unlocked Mutex?</span><span class="chev">⌄</span></summary>
+        <div class="answer">It causes a fatal runtime panic. You cannot unlock a mutex that isn't locked. This is why <code>defer mu.Unlock()</code> immediately following <code>mu.Lock()</code> is the standard idiom—it perfectly pairs them.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">Can you lock a Mutex in one goroutine and unlock it in another?</span><span class="chev">⌄</span></summary>
+        <div class="answer">Technically yes, the Go runtime does not tie a Mutex to a specific goroutine ID (unlike thread-local locks in some languages). However, this is universally considered <strong>terrible practice</strong> and leads to unmaintainable code. If you need to lock in one place and unlock in another, you almost certainly need a Channel or a WaitGroup instead.</div></details>
+      </div>
+    </section>
+
+    <section id="defer" class="topic">
+      <span class="tag">Topic 15</span>
+      <h2>Defer, Panic, and Recover</h2>
+      <p>Go doesn't have <code>try/catch/finally</code>. It handles expected failures via return values (<code>error</code>) and catastrophic, unrecoverable failures via <code>panic</code>. To clean up resources regardless of how a function exits, Go uses <code>defer</code>.</p>
+      
+      <div class="code-label">defer_eval.go</div>
+      <pre class="language-go"><code class="language-go">func AnalyzeSpatialData() {
+    defer fmt.Println("1. This runs LAST (LIFO)")
+    defer fmt.Println("2. This runs FIRST")
+    
+    fmt.Println("3. Doing spatial analysis...")
+}
+// Output:
+// 3. Doing spatial analysis...
+// 2. This runs FIRST
+// 1. This runs LAST (LIFO)</code></pre>
+
+      <div class="callout note">
+        <span class="label">Good to know</span>
+        <p>A deferred function's <em>arguments</em> are evaluated immediately when the defer statement is executed, not when the function actually runs at the end. For example, in <code>defer fmt.Println(time.Now())</code>, the time printed will be the time the defer was declared, not the time the function exited.</p>
+      </div>
+
+      <div class="code-label">recover.go</div>
+      <pre class="language-go"><code class="language-go">func SafeWorker() {
+    defer func() {
+        // recover() stops the panic unwinding and returns the panic value
+        if r := recover(); r != nil {
+            fmt.Println("Recovered from panic:", r)
+        }
+    }()
+
+    fmt.Println("Starting unsafe operation...")
+    panic("catastrophic memory fault")
+    fmt.Println("This line will never print")
+}</code></pre>
+
+      <div class="qa">
+        <h3>Interview Questions — Defer &amp; Panic</h3>
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">In what order do multiple <code>defer</code> statements execute?</span><span class="chev">⌄</span></summary>
+        <div class="answer">LIFO (Last In, First Out). The last <code>defer</code> statement pushed onto the stack is the first one pulled off when the function returns.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">Can a deferred function modify named return values?</span><span class="chev">⌄</span></summary>
+        <div class="answer">Yes! If a function has a named return value (e.g., <code>func work() (err error)</code>), an anonymous deferred closure can read and modify that <code>err</code> variable before the function actually hands it back to the caller. This is often used to wrap errors at the very end of a function.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">How does <code>recover()</code> work, and where must it be called?</span><span class="chev">⌄</span></summary>
+        <div class="answer"><code>recover()</code> catches a panicking goroutine, stops the crashing sequence, and returns the value that was originally passed to <code>panic()</code>. It <strong>must</strong> be called directly inside a deferred function. Calling it anywhere else will just return <code>nil</code> and fail to stop the panic.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">Does a panic in one goroutine affect others?</span><span class="chev">⌄</span></summary>
+        <div class="answer">Yes. An unrecovered panic in <strong>any</strong> goroutine will crash the entire Go program immediately. You cannot recover from a panic that occurred in a different goroutine.</div></details>
+      </div>
+    </section>
+
+    <section id="errors" class="topic">
+      <span class="tag">Topic 16</span>
+      <h2>Advanced Error Handling</h2>
+      <p>Since Go 1.13, errors can "wrap" other errors to provide context (like a stack trace of strings) without losing the original error's type. This replaces the old habit of string-concatenating errors.</p>
+      
+      <div class="code-label">errors.go</div>
+      <pre class="language-go"><code class="language-go">var ErrTimeout = errors.New("provider timeout")
+
+func DispatchToProvider(id string) error {
+    err := pingProvider(id)
+    if err != nil {
+        // Use %w to WRAP the error, keeping ErrTimeout intact underneath
+        return fmt.Errorf("gocatalyst dispatch failed: %w", err)
+    }
+    return nil
+}
+
+func main() {
+    err := DispatchToProvider("groq-alpha")
+    
+    // errors.Is unwraps the chain and checks if ErrTimeout is anywhere inside it
+    if errors.Is(err, ErrTimeout) {
+        fmt.Println("Provider timed out, failing over...")
+    }
+}</code></pre>
+
+      <div class="callout note">
+        <span class="label">Good to know</span>
+        <p>Use <code>errors.Is(err, target)</code> to check if an error matches a specific sentinel error value (like <code>ErrTimeout</code>). Use <code>errors.As(err, &targetStruct)</code> to check if an error is of a specific <em>type</em> (custom struct) and extract its fields.</p>
+      </div>
+
+      <div class="qa">
+        <h3>Interview Questions — Errors</h3>
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">What is the difference between <code>%v</code> and <code>%w</code> in <code>fmt.Errorf</code>?</span><span class="chev">⌄</span></summary>
+        <div class="answer"><code>%v</code> simply formats the error as a string, permanently losing the original error's type. <code>%w</code> <em>wraps</em> the error, creating an error chain. This allows the caller to unwrap it later using <code>errors.Is</code> or <code>errors.As</code> to inspect the root cause.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">Why use <code>errors.Is(err, ErrFoo)</code> instead of <code>err == ErrFoo</code>?</span><span class="chev">⌄</span></summary>
+        <div class="answer">If the error was wrapped at any point in the call stack (e.g., <code>fmt.Errorf("context: %w", ErrFoo)</code>), the direct equality check <code>err == ErrFoo</code> will evaluate to false because the types no longer match exactly. <code>errors.Is</code> unwraps the error layer by layer, checking equality at every level.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">How do you extract data from a custom error struct?</span><span class="chev">⌄</span></summary>
+        <div class="answer">Using <code>errors.As</code>. You pass the error and a pointer to a variable of your custom error type. If the error (or any wrapped error inside it) matches that type, <code>errors.As</code> populates your variable and returns true.</div></details>
+      </div>
+    </section>
+
+    <section id="context" class="topic">
+      <span class="tag">Topic 17</span>
+      <h2>The Context Package</h2>
+      <p><code>context.Context</code> is the standard way to pass deadlines, cancellation signals, and request-scoped metadata (like trace IDs) across API boundaries and deep into goroutines.</p>
+
+      <div class="code-label">context.go</div>
+      <pre class="language-go"><code class="language-go">// Context is always passed explicitly as the FIRST parameter
+func FetchCableTelemetry(ctx context.Context, nodeID string) (Data, error) {
+    req, _ := http.NewRequestWithContext(ctx, "GET", "http://api/vigil/"+nodeID, nil)
+    
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return nil, err // Will return context.Canceled if the timeout fired
+    }
+    defer resp.Body.Close()
+    // ...
+}
+
+func main() {
+    // Create a context with a strict 2-second timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+    
+    // ALWAYS defer cancel to avoid background timer leaks
+    defer cancel() 
+
+    data, err := FetchCableTelemetry(ctx, "node-alpha")
+}</code></pre>
+
+      <div class="callout warn">
+        <span class="label">Interview Trap</span>
+        <p>Never store a Context in a struct type (e.g., <code>type Client struct { ctx context.Context }</code>). Contexts should flow through the program as function arguments. Storing them in structs leads to confusing lifecycles where a struct instance becomes permanently cancelled.</p>
+      </div>
+
+      <div class="qa">
+        <h3>Interview Questions — Context</h3>
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">What are the golden rules of passing Context?</span><span class="chev">⌄</span></summary>
+        <div class="answer">1. Never store Context in a struct; pass it explicitly.<br>2. It should always be the <strong>first</strong> parameter of a function, traditionally named <code>ctx</code>.<br>3. Never pass a <code>nil</code> Context. If you aren't sure what to pass yet, use <code>context.TODO()</code>.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">Why must you always call the <code>cancel()</code> function returned by <code>WithTimeout</code>?</span><span class="chev">⌄</span></summary>
+        <div class="answer">When you create a context with a timeout, a background timer is allocated in memory. If the function finishes quickly but you don't call <code>cancel()</code>, that timer and its associated resources linger in memory until the timeout naturally fires, causing a memory leak. Deferring <code>cancel()</code> immediately frees those resources upon exit.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">Should you use <code>context.WithValue</code> to pass optional function parameters?</span><span class="chev">⌄</span></summary>
+        <div class="answer">Absolutely not. <code>context.WithValue</code> should strictly be used for request-scoped data that transits boundaries, like auth tokens, trace IDs, or request origin IPs. Using it as a "garbage bin" for optional configuration parameters bypasses compile-time type safety and makes the function's dependencies completely invisible.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">If a parent context is cancelled, what happens to contexts derived from it?</span><span class="chev">⌄</span></summary>
+        <div class="answer">All children contexts (and their children) are immediately cancelled as well. Cancellation propagates down the tree, but never up.</div></details>
+      </div>
+    </section>
+
+    <section id="generics" class="topic">
+      <span class="tag">Topic 18</span>
+      <h2>Generics (Go 1.18+)</h2>
+      <p>Before Go 1.18, writing a function that worked on any type required using <code>interface{}</code> and dangerous runtime type assertions. Generics introduce compile-time type parameters via square brackets <code>[T]</code>.</p>
+
+      <div class="code-label">generics.go</div>
+      <pre class="language-go"><code class="language-go">// K must be a comparable type (usable as a map key)
+// V can be absolutely anything (any)
+func GetMapKeys[K comparable, V any](m map[K]V) []K {
+    keys := make([]K, 0, len(m))
+    for k := range m {
+        keys = append(keys, k)
+    }
+    return keys
+}
+
+func main() {
+    scores := map[string]int{"Mujtaba": 95, "Usman": 88}
+    
+    // The compiler infers [string, int] automatically
+    keys := GetMapKeys(scores) 
+    fmt.Println(keys) // ["Mujtaba", "Usman"]
+}</code></pre>
+
+      <p>You can also create generic structs, which is perfect for building custom data structures or API response wrappers.</p>
+
+      <div class="code-label">generic_struct.go</div>
+      <pre class="language-go"><code class="language-go">type Response[T any] struct {
+    Data  T      `json:"data"`
+    Error string `json:"error,omitempty"`
+}
+
+// Usage:
+var r Response[int]
+r.Data = 42</code></pre>
+
+      <div class="qa">
+        <h3>Interview Questions — Generics</h3>
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">What is the <code>comparable</code> constraint?</span><span class="chev">⌄</span></summary>
+        <div class="answer">It is a built-in generic constraint that restricts a type parameter to only types that support the <code>==</code> and <code>!=</code> operators (like strings, ints, and pointers). This is mandatory if you intend to use the generic type as a map key or compare instances directly inside the function.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">What is the difference between <code>[T any]</code> and using <code>interface{}</code> parameters?</span><span class="chev">⌄</span></summary>
+        <div class="answer">Using <code>interface{}</code> requires runtime type assertions to manipulate the underlying data, permanently losing compile-time safety. Generics (<code>[T any]</code>) are resolved at compile-time, ensuring full type safety and eliminating the need to cast the results back to their original type.</div></details>
+
+        <details class="q"><summary><span class="qmark">Q</span><span class="qtext">When should you NOT use generics?</span><span class="chev">⌄</span></summary>
+        <div class="answer">If you just need to call a method on a value, use an Interface. Generics are for when the specific type of the data matters to the function's input/output mapping (e.g., returning a slice of the exact same type that was passed in), or for building agnostic data structures like Sets and Trees.</div></details>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>Go Interview Field Notes — Part 4: Advanced Patterns & Modern Go.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+<script>
+  // Scroll progress bar
+  const fill = document.querySelector('.progress-fill');
+  function updateProgress(){
+    const h = document.documentElement;
+    const max = h.scrollHeight - h.clientHeight;
+    const pct = max > 0 ? (h.scrollTop / max) * 100 : 0;
+    fill.style.width = pct + '%';
+  }
+  window.addEventListener('scroll', updateProgress);
+  window.addEventListener('resize', updateProgress);
+  updateProgress();
+
+  // Active sidebar link on scroll
+  const sections = document.querySelectorAll('main.content .topic');
+  const links = document.querySelectorAll('nav.sidebar a');
+  const linkMap = new Map();
+  links.forEach(l => linkMap.set(l.getAttribute('href').slice(1), l));
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        const link = linkMap.get(e.target.id);
+        if (!link) return;
+        if (e.isIntersecting) {
+          links.forEach(l => l.classList.remove('active'));
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -65% 0px', threshold: 0 });
+    sections.forEach(s => observer.observe(s));
+  }
+
+  window.addEventListener('load', () => { if (window.Prism) Prism.highlightAll(); });
+</script>
+
+</body>
+</html>
